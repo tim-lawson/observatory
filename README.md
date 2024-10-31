@@ -23,7 +23,7 @@ This repository hosts code for two projects:
 First clone this repo:
 
 ```bash
-git clone git@github.com:TransluceAI/observatory.git
+git clone https://github.com/TransluceAI/observatory.git
 ```
 
 ### Installing `luce`
