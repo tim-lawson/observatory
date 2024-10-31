@@ -1,0 +1,60 @@
+{
+  "folders": [
+    {
+      "path": "../",
+      "name": "observatory",
+      "settings": {
+        "python.defaultInterpreterPath": "./.venv/bin/python"
+      }
+    },
+    {
+      "path": "../lib/neurondb",
+      "name": "neurondb",
+      "settings": {
+        "python.defaultInterpreterPath": "./.venv/bin/python"
+      }
+    },
+    {
+      "path": "../lib/investigator",
+      "name": "investigator",
+      "settings": {
+        "python.defaultInterpreterPath": "./.venv/bin/python"
+      }
+    },
+    {
+      "path": "../project/monitor",
+      "name": "monitor",
+      "settings": {
+        "python.defaultInterpreterPath": "./.venv/bin/python"
+      }
+    },
+    {
+      "path": "../lib/util",
+      "name": "util",
+      "settings": {
+        "python.defaultInterpreterPath": "./.venv/bin/python"
+      }
+    },
+    {
+      "path": "../lib/activations",
+      "name": "activations",
+      "settings": {
+        "python.defaultInterpreterPath": "./.venv/bin/python"
+      }
+    },
+    {
+      "path": "../lib/explanations",
+      "name": "explanations",
+      "settings": {
+        "python.defaultInterpreterPath": "./.venv/bin/python"
+      }
+    },
+    {
+      "path": "../project/expgen",
+      "name": "expgen",
+      "settings": {
+        "python.defaultInterpreterPath": "./.venv/bin/python"
+      }
+    },
+  ],
+}

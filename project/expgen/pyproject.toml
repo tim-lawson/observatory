@@ -1,0 +1,32 @@
+[project]
+name = "expgen"
+version = "0.0.1"
+description = "explanation generation and scoring pipeline"
+
+requires-python = "==3.12.*"
+dependencies = [
+    "util",
+    "activations",
+    "explanations",
+    "jupyter>=1.0.0",
+    "statsmodels>=0.14.0",
+]
+
+[tool.uv.sources]
+util = {path = "../../lib/util", editable = true}
+activations = {path = "../../lib/activations", editable = true}
+explanations = {path = "../../lib/explanations", editable = true}
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["expgen"]
+
+[tool.pyright]
+# strict = ["expgen"]
+reportMissingTypeStubs = false
+
+[tool.hatch.metadata]
+allow-direct-references = true

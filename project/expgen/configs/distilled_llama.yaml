@@ -1,0 +1,33 @@
+add_special_tokens: true
+do_scoring: true
+examples_placement: no_examples
+exem_slice_for_exp:
+- 0
+- 20
+- 1
+exem_slice_to_score:
+- 0
+- 20
+- 1
+exemplar_config_path: /home/ubuntu/data/fineweb_lmsys-chat-1m_meta_llama_3.1_8b_instruct_chat_95seqlen/exemplar_config.json
+exemplars_data_dir: /home/ubuntu/data
+explainer_model_name: Transluce/llama_8b_explainer
+explainer_system_prompt_type: no_cot
+fix_examples_for_exp: false
+fix_exemplars_for_exp: false
+gen_exp_together: false
+neurons_file: experiments/llama8bi_distill_st_2000_101524/neurons0.npy
+num_exem_range_for_exp:
+- 10
+- 20
+num_explanation_samples: 50
+num_workers: 0
+permute_examples_for_exp: true
+permute_exemplars_for_exp: true
+round_to_int: true
+save_full_explainer_responses: false
+save_path: experiments/test_yaml
+simulator_model_name: Transluce/llama_8b_simulator
+splits_for_scoring:
+- valid
+- random_valid
