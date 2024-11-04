@@ -14,18 +14,19 @@ def find_project_root() -> Path:
 
 REPO_BRANCH = "main"
 REMOTE_ROOT = Path("/root/observatory")
-PROJECT_ROOT = find_project_root() if modal.is_local() else REMOTE_ROOT
+LOCAL_ROOT = find_project_root() if modal.is_local() else REMOTE_ROOT
 
 
-stub = modal.App("monitor-server-test")
+stub = modal.App("monitor-server")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("git")
     .run_commands(
         f"git clone -b {REPO_BRANCH} https://github.com/TransluceAI/observatory.git {REMOTE_ROOT}",
-        f"pip install -e {REMOTE_ROOT}/project/monitor",
+        "apt update && apt install -y curl && curl -LsSf https://astral.sh/uv/install.sh | sh",
+        f". ~/.bashrc && cd {REMOTE_ROOT}/project/monitor && uv pip install --system -e .",
     )
-    .copy_local_file(PROJECT_ROOT / ".env", f"/.env")
+    .copy_local_file(LOCAL_ROOT / ".env", REMOTE_ROOT / ".env")
     .env({"HF_HOME": "/root/.cache/huggingface"})
 )
 
@@ -36,25 +37,17 @@ model_store_path = "/root/.cache/huggingface/hub/models--meta-llama--Meta-Llama-
 # Define the GPU configuration
 gpu = modal.gpu.A100(count=1)  # type: ignore
 
-# TODO: fix these so the server becomes persistent!
-# INTERVENTIONS = modal.Dict.from_name("interventions", create_if_missing=True)
-# SESSIONS = modal.Dict.from_name("sessions", create_if_missing=True)
-# FILTER_CACHE = modal.Dict.from_name("filter_cache", create_if_missing=True)
-# LINTER_CACHE = modal.Dict.from_name("linter_cache", create_if_missing=True)
-# MESSAGE_CACHE = modal.Dict.from_name("generation_cache", create_if_missing=True)
-
 
 @stub.function(
     image=image,
     gpu=gpu,  # type: ignore
-    concurrency_limit=1,
+    concurrency_limit=10,
     allow_concurrent_inputs=1,
     volumes={model_store_path: volume},
     container_idle_timeout=300,
-    keep_warm=1,
+    keep_warm=2,
 )
-# @modal.asgi_app(custom_domains=["monitor-backend.transluce.org"])
-@modal.asgi_app()  # type: ignore
+@modal.asgi_app(custom_domains=["monitor-backend.transluce.org"])  # type: ignore
 def app():
     from monitor.server import asgi_app
 
