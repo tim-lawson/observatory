@@ -321,7 +321,14 @@ class ExemplarConfig(BaseModel):
     batch_size: int = 512
     rand_seqs: int = 10
     seed: int = 64
-    activation_type: Literal["MLP"] = "MLP"
+    # TODO(timl): move to enum?
+    activation_type: Literal[
+        "resid",
+        "mlp_in",
+        "mlp_out",
+        "attn_out",
+        "neurons",
+    ] = "neurons"
 
 
 class ExemplarsWrapper:
@@ -347,6 +354,8 @@ class ExemplarsWrapper:
         if subject.is_chat_model:
             folder_name_components.append("chat")
         folder_name_components.append(f"{config.seq_len}seqlen")
+        if config.activation_type != "neurons":
+            folder_name_components.append(config.activation_type)
         assert subject.tokenizer.padding_side == "left"
 
         folder_name = "_".join(folder_name_components)
@@ -430,8 +439,16 @@ class ExemplarsWrapper:
             ExemplarSplit.RANDOM_TEST,
         )
 
-        if self.config.activation_type == "MLP":
+        # TODO(timl): move to function
+        if self.config.activation_type == "neurons":
             num_features = self.subject.I
+        elif self.config.activation_type in (
+            "resid",
+            "mlp_in",
+            "mlp_out",
+            "attn_out",
+        ):
+            num_features = self.subject.D
         else:
             raise ValueError(f"Invalid activation type: {self.config.activation_type}")
         num_top_feats_to_save = self.config.num_top_acts_to_save
@@ -496,8 +513,16 @@ class ExemplarsWrapper:
         layer_dir = self.get_layer_dir(layer, split)
         os.makedirs(layer_dir, exist_ok=True)
 
-        if self.config.activation_type == "MLP":
+        # TODO(timl): move to function
+        if self.config.activation_type == "neurons":
             num_features = self.subject.I
+        elif self.config.activation_type in (
+            "resid",
+            "mlp_in",
+            "mlp_out",
+            "attn_out",
+        ):
+            num_features = self.subject.D
         else:
             raise ValueError(f"Invalid activation type: {self.config.activation_type}")
         num_top_feats_to_save = self.config.num_top_acts_to_save
