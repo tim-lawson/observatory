@@ -6,6 +6,7 @@ Can also save random sequences for each split and neuron.
 import argparse
 from typing import Any
 
+from activations.activations_computation import ActivationType
 from activations.dataset import HFDatasetWrapperConfig, fineweb_dset_config, lmsys_dset_config
 from activations.exemplars import ExemplarSplit
 from activations.exemplars_computation import (
@@ -19,14 +20,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--activation_type",
     type=str,
-    # TODO(timl): move to enum?
     choices=[
-        "resid",
-        "mlp_in",
-        "mlp_out",
-        "attn_out",
-        "neurons",
+        ActivationType.RESID,
+        ActivationType.MLP_IN,
+        ActivationType.MLP_OUT,
+        ActivationType.ATTN_OUT,
+        ActivationType.NEURONS,
     ],
+    default="neurons",
     help="Type of activations from which we pick indices to compute exemplars for.",
 )
 parser.add_argument(
