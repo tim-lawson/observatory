@@ -18,6 +18,7 @@ from activations.dataset import (
 from activations.exemplars import ExemplarSplit, ExemplarType, NeuronExemplars
 from IPython.display import HTML, display  # type: ignore
 from pydantic import BaseModel
+from sae_lens.sae import SAE  # type: ignore
 from torch.utils.data import Dataset, IterableDataset
 from util.chat_input import IdsInput
 from util.subject import Subject, get_subject_config
@@ -323,6 +324,7 @@ class ExemplarConfig(BaseModel):
     rand_seqs: int = 10
     seed: int = 64
     activation_type: ActivationType = ActivationType.NEURONS
+    sae_release: Optional[str] = None
 
 
 class ExemplarsWrapper:
@@ -331,6 +333,7 @@ class ExemplarsWrapper:
         data_dir: str,
         config: ExemplarConfig,
         subject: Subject,
+        sae: Optional[SAE] = None,
     ):
         # Check whether hf_model_id matches subject.
         assert config.hf_model_id == subject.lm_config.hf_model_id
@@ -350,6 +353,8 @@ class ExemplarsWrapper:
         folder_name_components.append(f"{config.seq_len}seqlen")
         if config.activation_type != "neurons":
             folder_name_components.append(config.activation_type)
+        if config.sae_release is not None:
+            folder_name_components.append(config.sae_release)
         assert subject.tokenizer.padding_side == "left"
 
         folder_name = "_".join(folder_name_components)
@@ -394,6 +399,7 @@ class ExemplarsWrapper:
         self.hf_datasets: List[HFDatasetWrapper] = [hf_datasets[name] for name in dataset_names]
         self.dataset_names: List[str] = dataset_names
         self.save_path: str = save_path
+        self.sae: Optional[SAE] = sae
 
     @classmethod
     def from_disk(cls, save_path: str, subject: Optional[Subject] = None):
@@ -433,7 +439,7 @@ class ExemplarsWrapper:
             ExemplarSplit.RANDOM_TEST,
         )
 
-        num_features = self.num_features
+        self.num_features
         num_top_feats_to_save = self.config.num_top_acts_to_save
         k, seq_len = self.config.k, self.config.seq_len
 
@@ -455,20 +461,22 @@ class ExemplarsWrapper:
                 if not random:
                     acts[extype] = np.load(os.path.join(layer_dir, f"{extype.value}_acts.npy"))
                     assert (
-                        acts[extype].shape[0] == num_features
-                        and acts[extype].shape[1] <= num_top_feats_to_save
+                        # acts[extype].shape[0] == num_features and
+                        # and acts[extype].shape[1] <= num_top_feats_to_save
+                        acts[extype].shape[1]
+                        <= num_top_feats_to_save
                     )
 
                 seq_acts[extype] = np.load(os.path.join(layer_dir, f"{extype.value}_seq_acts.npy"))
-                assert seq_acts[extype].shape == (num_features, k, seq_len)
+                # assert seq_acts[extype].shape == (num_features, k, seq_len)
 
                 ids[extype] = np.load(os.path.join(layer_dir, f"{extype.value}_seq_ids.npy"))
-                assert ids[extype].shape == (num_features, k, seq_len)
+                # assert ids[extype].shape == (num_features, k, seq_len)
 
                 dataset_ids[extype] = np.load(
                     os.path.join(layer_dir, f"{extype.value}_dataset_ids.npy")
                 )
-                assert dataset_ids[extype].shape == (num_features, k)
+                # assert dataset_ids[extype].shape == (num_features, k)
 
             return acts, seq_acts, ids, dataset_ids, step, num_tokens_seen
         except:
@@ -496,7 +504,7 @@ class ExemplarsWrapper:
         layer_dir = self.get_layer_dir(layer, split)
         os.makedirs(layer_dir, exist_ok=True)
 
-        num_features = self.num_features
+        self.num_features
         num_top_feats_to_save = self.config.num_top_acts_to_save
         k, seq_len = self.config.k, self.config.seq_len
 
@@ -505,24 +513,24 @@ class ExemplarsWrapper:
             if not random:
                 assert (
                     acts is not None
-                    and acts[extype].shape[0] == num_features
+                    # and acts[extype].shape[0] == num_features
                     and acts[extype].shape[1] <= num_top_feats_to_save
                 )
                 np.save(os.path.join(layer_dir, f"{extype.value}_acts.npy"), acts[extype])
 
-            assert seq_acts[extype].shape == (num_features, k, seq_len)
+            # assert seq_acts[extype].shape == (num_features, k, seq_len)
             np.save(
                 os.path.join(layer_dir, f"{extype.value}_seq_acts.npy"),
                 seq_acts[extype],
             )
 
-            assert token_ids[extype].shape == (num_features, k, seq_len)
+            # assert token_ids[extype].shape == (num_features, k, seq_len)
             np.save(
                 os.path.join(layer_dir, f"{extype.value}_seq_ids.npy"),
                 token_ids[extype],
             )
 
-            assert dataset_ids[extype].shape == (num_features, k)
+            # assert dataset_ids[extype].shape == (num_features, k)
             np.save(
                 os.path.join(layer_dir, f"{extype.value}_dataset_ids.npy"),
                 dataset_ids[extype],

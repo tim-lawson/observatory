@@ -10,12 +10,14 @@ dependencies = [
     "explanations",
     "jupyter>=1.0.0",
     "statsmodels>=0.14.0",
+    "sae-lens",
 ]
 
 [tool.uv.sources]
 util = {path = "../../lib/util", editable = true}
 activations = {path = "../../lib/activations", editable = true}
 explanations = {path = "../../lib/explanations", editable = true}
+sae-lens = { git = "https://github.com/tim-lawson/SAELens", branch = "timl/deps" }
 
 [build-system]
 requires = ["hatchling"]

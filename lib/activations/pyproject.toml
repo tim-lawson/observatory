@@ -7,10 +7,12 @@ requires-python = "==3.12.*"
 dependencies = [
     "util",
     "baukit @ git+https://github.com/choidami/baukit.git",
+    "sae-lens",
 ]
 
 [tool.uv.sources]
 util = {path = "../util", editable = true}
+sae-lens = { git = "https://github.com/tim-lawson/SAELens", branch = "timl/deps" }
 
 [build-system]
 requires = ["hatchling"]
