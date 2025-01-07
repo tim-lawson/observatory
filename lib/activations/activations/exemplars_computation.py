@@ -7,7 +7,10 @@ from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
 
 import numpy as np
 import torch
-from activations.activations_computation import get_activations_computing_func
+from activations.activations_computation import (
+    get_activations_computing_func,
+    get_mlp_activations_computing_func,
+)
 from activations.dataset import MultiSourceDataset
 from activations.exemplars import ExemplarSplit, ExemplarType
 from activations.exemplars_wrapper import ExemplarsWrapper
@@ -57,12 +60,12 @@ def collate_fn_with_dataset_ids(
     }
 
 
-def get_encode_func(sae: Optional[SAE]) -> Callable[[torch.Tensor], torch.Tensor]:
-    def encode_func(x: torch.Tensor) -> torch.Tensor:
+def get_sae_encode_func(sae: Optional[SAE]) -> Callable[[torch.Tensor], torch.Tensor]:
+    def sae_encode_func(x: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
             return sae.encode(x) if sae is not None else x
 
-    return encode_func
+    return sae_encode_func
 
 
 def update_top_acts_and_starts(
@@ -162,7 +165,7 @@ def compute_exemplars_for_layer(
     subject = exemplars_wrapper.subject
     num_iters = config.num_seqs // config.batch_size
 
-    encode_func = get_encode_func(exemplars_wrapper.sae)
+    sae_encode_func = get_sae_encode_func(exemplars_wrapper.sae)
 
     # Keep track of the top-k max and min activations per neuron.
     top_acts: Dict[ExemplarType, torch.Tensor | None] = {
@@ -229,6 +232,11 @@ def compute_exemplars_for_layer(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
 
+    jacobian_saes = exemplars_wrapper.jacobian_saes
+    get_mlp_acts = None
+    if exemplars_wrapper.jacobian_saes is not None:
+        get_mlp_acts = get_mlp_activations_computing_func(subject=subject, layer=layer)
+
     def save(curr_step: int, num_tokens_seen_so_far: int):
         acts_to_save: Dict[ExemplarType, NDFloatArray] = {}
         seq_acts_to_save: Dict[ExemplarType, NDFloatArray] = {}
@@ -289,9 +297,26 @@ def compute_exemplars_for_layer(
             continue
 
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
-        acts = encode_func(
+        acts = sae_encode_func(
             get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
         )  # (batch_size, seq_len, act_dim)
+
+        if jacobian_saes is not None and get_mlp_acts is not None:
+            mlp_acts_in, mlp_acts_out = get_mlp_acts(batch["input_ids"], batch["attention_mask"])
+            mlp_acts_in, mlp_acts_out = (mlp_acts_in.to("cuda:0"), mlp_acts_out.to("cuda:0"))
+            sae_acts_in, _sae_indices_in = jacobian_saes.sae.encode(
+                mlp_acts_in, is_output_sae=False, return_topk_indices=True  # type: ignore
+            )
+            mlp_acts_out, mlp_act_grads = jacobian_saes.mlp.forward(mlp_acts_in)
+            mlp_act_grads = mlp_act_grads.detach()
+            sae_acts_out, _sae_indices_out = jacobian_saes.sae.encode(
+                mlp_acts_out, is_output_sae=True, return_topk_indices=True  # type: ignore
+            )
+            if exemplars_wrapper.config.jsae_is_output is not False:  # default to output
+                acts = sae_acts_out
+            else:
+                acts = sae_acts_in
+
         for key, largest in [(ExemplarType.MAX, True), (ExemplarType.MIN, False)]:
             (
                 top_acts[key],
@@ -335,7 +360,7 @@ def compute_exemplars_for_neuron(
     subject = exemplars_wrapper.subject
     num_iters = config.num_seqs // config.batch_size
 
-    encode_func = get_encode_func(exemplars_wrapper.sae)
+    sae_encode_func = get_sae_encode_func(exemplars_wrapper.sae)
 
     # Keep track of the top-k max and min activations.
     top_acts: Dict[ExemplarType, torch.Tensor | None] = {
@@ -371,6 +396,11 @@ def compute_exemplars_for_neuron(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
 
+    jacobian_saes = exemplars_wrapper.jacobian_saes
+    get_mlp_acts = None
+    if exemplars_wrapper.jacobian_saes is not None:
+        get_mlp_acts = get_mlp_activations_computing_func(subject=subject, layer=layer)
+
     num_tokens_seen = 0
     step = None
     for step in tqdm(range(num_iters)):
@@ -386,9 +416,26 @@ def compute_exemplars_for_neuron(
         num_tokens_seen += int(batch["attention_mask"].sum().item())
 
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
-        acts = encode_func(
+        acts = sae_encode_func(
             get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
         )  # (batch_size, seq_len, act_dim)
+
+        if jacobian_saes is not None and get_mlp_acts is not None:
+            mlp_acts_in, mlp_acts_out = get_mlp_acts(batch["input_ids"], batch["attention_mask"])
+            mlp_acts_in, mlp_acts_out = (mlp_acts_in.to("cuda:0"), mlp_acts_out.to("cuda:0"))
+            sae_acts_in, _sae_indices_in = jacobian_saes.sae.encode(
+                mlp_acts_in, is_output_sae=False, return_topk_indices=True  # type: ignore
+            )
+            mlp_acts_out, mlp_act_grads = jacobian_saes.mlp.forward(mlp_acts_in)
+            mlp_act_grads = mlp_act_grads.detach()
+            sae_acts_out, _sae_indices_out = jacobian_saes.sae.encode(
+                mlp_acts_out, is_output_sae=True, return_topk_indices=True  # type: ignore
+            )
+            if exemplars_wrapper.config.jsae_is_output is not False:  # default to output
+                acts = sae_acts_out
+            else:
+                acts = sae_acts_in
+
         neuron_acts = acts[:, :, [neuron_idx]]  # (batch_size, seq_len, 1)
         for key, largest in [(ExemplarType.MAX, True), (ExemplarType.MIN, False)]:
             (
@@ -468,7 +515,7 @@ def save_random_seqs_for_layer(
     rand_seqs = config.rand_seqs
     k = rand_seqs * 2  # we need rand_seqs random sequences for each exemplar type (max and min).
 
-    encode_func = get_encode_func(exemplars_wrapper.sae)
+    sae_encode_func = get_sae_encode_func(exemplars_wrapper.sae)
 
     num_neurons_per_step = config.batch_size // k
     num_exemplars_per_step = num_neurons_per_step * k
@@ -527,6 +574,11 @@ def save_random_seqs_for_layer(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
 
+    jacobian_saes = exemplars_wrapper.jacobian_saes
+    get_mlp_acts = None
+    if exemplars_wrapper.jacobian_saes is not None:
+        get_mlp_acts = get_mlp_activations_computing_func(subject=subject, layer=layer)
+
     all_seq_ids: List[NDIntArray] = []
     all_seq_acts: List[NDFloatArray] = []
     all_dataset_ids: List[NDIntArray] = []
@@ -538,9 +590,26 @@ def save_random_seqs_for_layer(
 
         dataset_ids = batch.pop("dataset_ids")
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
-        acts = encode_func(
+        acts = sae_encode_func(
             get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
         )  # (batch_size, seq_len, act_dim)
+
+        if jacobian_saes is not None and get_mlp_acts is not None:
+            mlp_acts_in, mlp_acts_out = get_mlp_acts(batch["input_ids"], batch["attention_mask"])
+            mlp_acts_in, mlp_acts_out = (mlp_acts_in.to("cuda:0"), mlp_acts_out.to("cuda:0"))
+            sae_acts_in, _sae_indices_in = jacobian_saes.sae.encode(
+                mlp_acts_in, is_output_sae=False, return_topk_indices=True  # type: ignore
+            )
+            mlp_acts_out, mlp_act_grads = jacobian_saes.mlp.forward(mlp_acts_in)
+            mlp_act_grads = mlp_act_grads.detach()
+            sae_acts_out, _sae_indices_out = jacobian_saes.sae.encode(
+                mlp_acts_out, is_output_sae=True, return_topk_indices=True  # type: ignore
+            )
+            if exemplars_wrapper.config.jsae_is_output is not False:  # default to output
+                acts = sae_acts_out
+            else:
+                acts = sae_acts_in
+
         acts = acts[
             : num_neurons_per_step * k,
             :,

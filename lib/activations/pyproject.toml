@@ -8,11 +8,15 @@ dependencies = [
     "util",
     "baukit @ git+https://github.com/choidami/baukit.git",
     "sae-lens",
+    "jacobian-saes",
+    "einops>=0.8.0",
+    "transformer-lens>=2.11.0",
 ]
 
 [tool.uv.sources]
 util = {path = "../util", editable = true}
 sae-lens = { git = "https://github.com/tim-lawson/SAELens", branch = "timl/deps" }
+jacobian-saes = { path = "../../../jacobian-saes", editable = true }
 
 [build-system]
 requires = ["hatchling"]

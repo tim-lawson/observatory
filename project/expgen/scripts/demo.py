@@ -3,10 +3,11 @@
 from typing import Mapping
 
 from activations.activations_computation import ActivationType
-from activations.dataset import lmsys_dset_config
+from activations.dataset import fineweb_1m_dset_config
 from activations.exemplars import ExemplarSplit, ExemplarType
 from activations.exemplars_computation import compute_exemplars_for_layer
 from activations.exemplars_wrapper import ExemplarConfig, ExemplarsWrapper
+from activations.jacobian_saes import JacobianSAEs
 from explanations.explanations import (
     ActivationSign,
     NeuronExplanation,
@@ -16,28 +17,37 @@ from explanations.explanations import (
 from explanations.explanations_wrapper import ExplanationConfig, ExplanationsWrapper
 from explanations.simulation_utils import FinetunedSimulator
 from sae_lens import SAE  # type: ignore
-from util.subject import Subject, llama31_8B_instruct_config
+from util.subject import Subject, get_subject_config
 
-data_dir = "data/demo/"
+data_dir = "data/jsae-demo/"
 
-layers = [5]
+# TODO: per-layer neuron_idxs
+layers = [3]
 neuron_idxs = [2183, 14249]
 
-subject = Subject(llama31_8B_instruct_config)
+# subject = Subject(llama31_8B_instruct_config)
+hf_model_id = "EleutherAI/pythia-70m-deduped"
+subject = Subject(get_subject_config(hf_model_id))
 
 activation_type = ActivationType.RESID
 sae_release = "llama_scope_lxr_8x"
 sae_id = "l5r_8x"
 sae, _cfg_dict, _sparsity = SAE.from_pretrained(release=sae_release, sae_id=sae_id, device="cuda")
 
+jacobian_saes = JacobianSAEs.load(
+    "/user/work/qr23940/git/jacobian-saes/checkpoints/nfcqpb7p/final_300003328",
+    "cuda:0",
+)
+
 exemplar_config = ExemplarConfig(
     hf_model_id=subject.lm_config.hf_model_id,
-    hf_dataset_configs=(lmsys_dset_config,),
-    num_seqs=50_000,
+    hf_dataset_configs=(fineweb_1m_dset_config,),
+    num_seqs=2_000,
     seq_len=95,
     k=100,
     activation_type=activation_type,
-    sae_release=sae_release,
+    # sae_id=f"{sae_release}_{sae_id}",
+    sae_id="jsae_l3_64x",
     batch_size=8,
 )
 

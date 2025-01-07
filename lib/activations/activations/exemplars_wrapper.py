@@ -16,6 +16,7 @@ from activations.dataset import (
     lmsys_dset_config,
 )
 from activations.exemplars import ExemplarSplit, ExemplarType, NeuronExemplars
+from activations.jacobian_saes import JacobianSAEs
 from IPython.display import HTML, display  # type: ignore
 from pydantic import BaseModel
 from sae_lens.sae import SAE  # type: ignore
@@ -324,7 +325,11 @@ class ExemplarConfig(BaseModel):
     rand_seqs: int = 10
     seed: int = 64
     activation_type: ActivationType = ActivationType.NEURONS
-    sae_release: Optional[str] = None
+
+    # arbitrary id for the SAE(s)
+    sae_id: Optional[str] = None
+    # if True, collect activations from the output SAE; otherwise, the input SAE
+    jsae_is_output: Optional[bool] = None
 
 
 class ExemplarsWrapper:
@@ -334,9 +339,13 @@ class ExemplarsWrapper:
         config: ExemplarConfig,
         subject: Subject,
         sae: Optional[SAE] = None,
+        jacobian_saes: Optional[JacobianSAEs] = None,
     ):
         # Check whether hf_model_id matches subject.
         assert config.hf_model_id == subject.lm_config.hf_model_id
+
+        # Check that only one of sae and jacobian_saes is provided.
+        assert sae is None or jacobian_saes is None
 
         hf_datasets: Dict[str, HFDatasetWrapper] = {}
         for hf_dataset_config in config.hf_dataset_configs:
@@ -353,8 +362,10 @@ class ExemplarsWrapper:
         folder_name_components.append(f"{config.seq_len}seqlen")
         if config.activation_type != "neurons":
             folder_name_components.append(config.activation_type)
-        if config.sae_release is not None:
-            folder_name_components.append(config.sae_release)
+        if config.sae_id is not None:
+            folder_name_components.append(config.sae_id)
+        if config.jsae_is_output is not None:
+            folder_name_components.append("output" if config.jsae_is_output else "input")
         assert subject.tokenizer.padding_side == "left"
 
         folder_name = "_".join(folder_name_components)
@@ -399,7 +410,10 @@ class ExemplarsWrapper:
         self.hf_datasets: List[HFDatasetWrapper] = [hf_datasets[name] for name in dataset_names]
         self.dataset_names: List[str] = dataset_names
         self.save_path: str = save_path
+
+        # Only one of sae and jacobian_saes is provided.
         self.sae: Optional[SAE] = sae
+        self.jacobian_saes: Optional[JacobianSAEs] = jacobian_saes
 
     @classmethod
     def from_disk(cls, save_path: str, subject: Optional[Subject] = None):
@@ -441,7 +455,7 @@ class ExemplarsWrapper:
 
         self.num_features
         num_top_feats_to_save = self.config.num_top_acts_to_save
-        k, seq_len = self.config.k, self.config.seq_len
+        # k, seq_len = self.config.k, self.config.seq_len
 
         layer_dir = self.get_layer_dir(layer, split)
         try:
@@ -506,7 +520,7 @@ class ExemplarsWrapper:
 
         self.num_features
         num_top_feats_to_save = self.config.num_top_acts_to_save
-        k, seq_len = self.config.k, self.config.seq_len
+        # k, seq_len = self.config.k, self.config.seq_len
 
         # Save data and check shapes.
         for extype in ExemplarType:

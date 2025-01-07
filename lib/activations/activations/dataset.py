@@ -49,9 +49,13 @@ class HFDatasetWrapper:
         subject: Subject,
         num_proc: int = 16,
     ):
-        if config.hf_dataset_id in ["HuggingFaceFW/fineweb", "HuggingFaceFW/fineweb-edu"]:
+        if config.hf_dataset_id in [
+            "HuggingFaceFW/fineweb",
+            "HuggingFaceFW/fineweb-edu",
+            "Alignment-Lab-AI/fineweb-1m-sample",
+        ]:
             assert config.hf_split == "train"
-            dset_kwargs = {
+            dset_kwargs: dict[str, str | None] = {
                 "path": config.hf_dataset_id,
                 "name": config.dataset_config_name,
                 "split": "train",
@@ -288,6 +292,14 @@ fineweb_dset_config = HFDatasetWrapperConfig(
     hf_split="train",
     seed=54,
 )
+
+
+fineweb_1m_dset_config = HFDatasetWrapperConfig(
+    hf_dataset_id="Alignment-Lab-AI/fineweb-1m-sample",
+    hf_split="train",
+    seed=54,
+)
+
 
 lmsys_dset_config = HFDatasetWrapperConfig(
     hf_dataset_id="lmsys/lmsys-chat-1m",

@@ -68,3 +68,22 @@ def get_activations_computing_func(
         return acts
 
     return activations_computing_func
+
+
+# TODO: don't assume the subject is a pythia model
+def get_mlp_activations_computing_func(
+    subject: Subject, layer: int
+) -> Callable[[torch.Tensor, torch.Tensor], tuple[torch.Tensor, torch.Tensor]]:
+    def mlp_activations_computing_func(
+        input_ids: torch.Tensor, attn_mask: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        with torch.no_grad():
+            with subject.model.trace({"input_ids": input_ids, "attention_mask": attn_mask}):  # type: ignore
+                acts_in = subject.model.gpt_neox.layers[
+                    layer
+                ].post_attention_layernorm.output.save()
+                acts_out = subject.model.gpt_neox.layers[layer].mlp.output.save()
+
+        return acts_in, acts_out  # type: ignore
+
+    return mlp_activations_computing_func

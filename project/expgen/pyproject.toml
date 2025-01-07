@@ -11,13 +11,15 @@ dependencies = [
     "jupyter>=1.0.0",
     "statsmodels>=0.14.0",
     "sae-lens",
+    "jacobian-saes",
 ]
 
 [tool.uv.sources]
-util = {path = "../../lib/util", editable = true}
-activations = {path = "../../lib/activations", editable = true}
-explanations = {path = "../../lib/explanations", editable = true}
+util = { path = "../../lib/util", editable = true }
+activations = { path = "../../lib/activations", editable = true }
+explanations = { path = "../../lib/explanations", editable = true }
 sae-lens = { git = "https://github.com/tim-lawson/SAELens", branch = "timl/deps" }
+jacobian-saes = { path = "../../../jacobian-saes", editable = true }
 
 [build-system]
 requires = ["hatchling"]
