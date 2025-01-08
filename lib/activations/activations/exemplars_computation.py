@@ -7,10 +7,7 @@ from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
 
 import numpy as np
 import torch
-from activations.activations_computation import (
-    get_activations_computing_func,
-    get_mlp_activations_computing_func,
-)
+from activations.activations_computation import get_activations_computing_func
 from activations.dataset import MultiSourceDataset
 from activations.exemplars import ExemplarSplit, ExemplarType
 from activations.exemplars_wrapper import ExemplarsWrapper
@@ -232,11 +229,6 @@ def compute_exemplars_for_layer(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
 
-    jacobian_saes = exemplars_wrapper.jacobian_saes
-    get_mlp_acts = None
-    if exemplars_wrapper.jacobian_saes is not None:
-        get_mlp_acts = get_mlp_activations_computing_func(subject=subject, layer=layer)
-
     def save(curr_step: int, num_tokens_seen_so_far: int):
         acts_to_save: Dict[ExemplarType, NDFloatArray] = {}
         seq_acts_to_save: Dict[ExemplarType, NDFloatArray] = {}
@@ -297,25 +289,19 @@ def compute_exemplars_for_layer(
             continue
 
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
-        acts = sae_encode_func(
-            get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
-        )  # (batch_size, seq_len, act_dim)
 
-        if jacobian_saes is not None and get_mlp_acts is not None:
-            mlp_acts_in, mlp_acts_out = get_mlp_acts(batch["input_ids"], batch["attention_mask"])
-            mlp_acts_in, mlp_acts_out = (mlp_acts_in.to("cuda:0"), mlp_acts_out.to("cuda:0"))
-            sae_acts_in, _sae_indices_in = jacobian_saes.sae.encode(
-                mlp_acts_in, is_output_sae=False, return_topk_indices=True  # type: ignore
+        if exemplars_wrapper.jsae is not None:
+            assert exemplars_wrapper.config.jsae is not None
+            acts = exemplars_wrapper.jsae.get_acts(
+                subject=subject,
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                activation_type=exemplars_wrapper.config.jsae.activation_type,
             )
-            mlp_acts_out, mlp_act_grads = jacobian_saes.mlp.forward(mlp_acts_in)
-            mlp_act_grads = mlp_act_grads.detach()
-            sae_acts_out, _sae_indices_out = jacobian_saes.sae.encode(
-                mlp_acts_out, is_output_sae=True, return_topk_indices=True  # type: ignore
-            )
-            if exemplars_wrapper.config.jsae_is_output is not False:  # default to output
-                acts = sae_acts_out
-            else:
-                acts = sae_acts_in
+        else:
+            acts = sae_encode_func(
+                get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
+            )  # (batch_size, seq_len, act_dim)
 
         for key, largest in [(ExemplarType.MAX, True), (ExemplarType.MIN, False)]:
             (
@@ -396,11 +382,6 @@ def compute_exemplars_for_neuron(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
 
-    jacobian_saes = exemplars_wrapper.jacobian_saes
-    get_mlp_acts = None
-    if exemplars_wrapper.jacobian_saes is not None:
-        get_mlp_acts = get_mlp_activations_computing_func(subject=subject, layer=layer)
-
     num_tokens_seen = 0
     step = None
     for step in tqdm(range(num_iters)):
@@ -416,25 +397,19 @@ def compute_exemplars_for_neuron(
         num_tokens_seen += int(batch["attention_mask"].sum().item())
 
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
-        acts = sae_encode_func(
-            get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
-        )  # (batch_size, seq_len, act_dim)
 
-        if jacobian_saes is not None and get_mlp_acts is not None:
-            mlp_acts_in, mlp_acts_out = get_mlp_acts(batch["input_ids"], batch["attention_mask"])
-            mlp_acts_in, mlp_acts_out = (mlp_acts_in.to("cuda:0"), mlp_acts_out.to("cuda:0"))
-            sae_acts_in, _sae_indices_in = jacobian_saes.sae.encode(
-                mlp_acts_in, is_output_sae=False, return_topk_indices=True  # type: ignore
+        if exemplars_wrapper.jsae is not None:
+            assert exemplars_wrapper.config.jsae is not None
+            acts = exemplars_wrapper.jsae.get_acts(
+                subject=subject,
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                activation_type=exemplars_wrapper.config.jsae.activation_type,
             )
-            mlp_acts_out, mlp_act_grads = jacobian_saes.mlp.forward(mlp_acts_in)
-            mlp_act_grads = mlp_act_grads.detach()
-            sae_acts_out, _sae_indices_out = jacobian_saes.sae.encode(
-                mlp_acts_out, is_output_sae=True, return_topk_indices=True  # type: ignore
-            )
-            if exemplars_wrapper.config.jsae_is_output is not False:  # default to output
-                acts = sae_acts_out
-            else:
-                acts = sae_acts_in
+        else:
+            acts = sae_encode_func(
+                get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
+            )  # (batch_size, seq_len, act_dim)
 
         neuron_acts = acts[:, :, [neuron_idx]]  # (batch_size, seq_len, 1)
         for key, largest in [(ExemplarType.MAX, True), (ExemplarType.MIN, False)]:
@@ -574,11 +549,6 @@ def save_random_seqs_for_layer(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
 
-    jacobian_saes = exemplars_wrapper.jacobian_saes
-    get_mlp_acts = None
-    if exemplars_wrapper.jacobian_saes is not None:
-        get_mlp_acts = get_mlp_activations_computing_func(subject=subject, layer=layer)
-
     all_seq_ids: List[NDIntArray] = []
     all_seq_acts: List[NDFloatArray] = []
     all_dataset_ids: List[NDIntArray] = []
@@ -590,25 +560,19 @@ def save_random_seqs_for_layer(
 
         dataset_ids = batch.pop("dataset_ids")
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
-        acts = sae_encode_func(
-            get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
-        )  # (batch_size, seq_len, act_dim)
 
-        if jacobian_saes is not None and get_mlp_acts is not None:
-            mlp_acts_in, mlp_acts_out = get_mlp_acts(batch["input_ids"], batch["attention_mask"])
-            mlp_acts_in, mlp_acts_out = (mlp_acts_in.to("cuda:0"), mlp_acts_out.to("cuda:0"))
-            sae_acts_in, _sae_indices_in = jacobian_saes.sae.encode(
-                mlp_acts_in, is_output_sae=False, return_topk_indices=True  # type: ignore
+        if exemplars_wrapper.jsae is not None:
+            assert exemplars_wrapper.config.jsae is not None
+            acts = exemplars_wrapper.jsae.get_acts(
+                subject=subject,
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                activation_type=exemplars_wrapper.config.jsae.activation_type,
             )
-            mlp_acts_out, mlp_act_grads = jacobian_saes.mlp.forward(mlp_acts_in)
-            mlp_act_grads = mlp_act_grads.detach()
-            sae_acts_out, _sae_indices_out = jacobian_saes.sae.encode(
-                mlp_acts_out, is_output_sae=True, return_topk_indices=True  # type: ignore
-            )
-            if exemplars_wrapper.config.jsae_is_output is not False:  # default to output
-                acts = sae_acts_out
-            else:
-                acts = sae_acts_in
+        else:
+            acts = sae_encode_func(
+                get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
+            )  # (batch_size, seq_len, act_dim)
 
         acts = acts[
             : num_neurons_per_step * k,

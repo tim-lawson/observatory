@@ -16,7 +16,7 @@ from activations.dataset import (
     lmsys_dset_config,
 )
 from activations.exemplars import ExemplarSplit, ExemplarType, NeuronExemplars
-from activations.jacobian_saes import JacobianSAEs
+from activations.jacobian_saes import JSAE, JSAEConfig
 from IPython.display import HTML, display  # type: ignore
 from pydantic import BaseModel
 from sae_lens.sae import SAE  # type: ignore
@@ -328,8 +328,7 @@ class ExemplarConfig(BaseModel):
 
     # arbitrary id for the SAE(s)
     sae_id: Optional[str] = None
-    # if True, collect activations from the output SAE; otherwise, the input SAE
-    jsae_is_output: Optional[bool] = None
+    jsae: Optional[JSAEConfig] = None
 
 
 class ExemplarsWrapper:
@@ -339,13 +338,13 @@ class ExemplarsWrapper:
         config: ExemplarConfig,
         subject: Subject,
         sae: Optional[SAE] = None,
-        jacobian_saes: Optional[JacobianSAEs] = None,
+        jsae: Optional[JSAE] = None,
     ):
         # Check whether hf_model_id matches subject.
         assert config.hf_model_id == subject.lm_config.hf_model_id
 
-        # Check that only one of sae and jacobian_saes is provided.
-        assert sae is None or jacobian_saes is None
+        # Check that only one of sae and jsae is provided.
+        assert sae is None or jsae is None
 
         hf_datasets: Dict[str, HFDatasetWrapper] = {}
         for hf_dataset_config in config.hf_dataset_configs:
@@ -364,8 +363,8 @@ class ExemplarsWrapper:
             folder_name_components.append(config.activation_type)
         if config.sae_id is not None:
             folder_name_components.append(config.sae_id)
-        if config.jsae_is_output is not None:
-            folder_name_components.append("output" if config.jsae_is_output else "input")
+        if config.jsae is not None:
+            folder_name_components.append(config.jsae.activation_type.value)
         assert subject.tokenizer.padding_side == "left"
 
         folder_name = "_".join(folder_name_components)
@@ -413,7 +412,7 @@ class ExemplarsWrapper:
 
         # Only one of sae and jacobian_saes is provided.
         self.sae: Optional[SAE] = sae
-        self.jacobian_saes: Optional[JacobianSAEs] = jacobian_saes
+        self.jsae: Optional[JSAE] = jsae
 
     @classmethod
     def from_disk(cls, save_path: str, subject: Optional[Subject] = None):
@@ -639,8 +638,12 @@ class ExemplarsWrapper:
                 except:
                     continue
                 splits.add(split)
-            concatenated_acts = np.concatenate(list(acts.values()), axis=1)
-            sorted_acts = np.sort(concatenated_acts, axis=1)
+            acts_list = list(acts.values())
+            if len(acts_list) > 0:
+                concatenated_acts = np.concatenate(acts_list, axis=1)
+                sorted_acts = np.sort(concatenated_acts, axis=1)
+            else:
+                sorted_acts = np.array([])
             layer_acts[extype] = sorted_acts
 
         num_tokens_seen = 0
@@ -679,8 +682,11 @@ class ExemplarsWrapper:
                     continue
                 top_acts_list.append(top_acts[split][extype])
                 splits.add(split)
-            concatenated_acts = np.concatenate(top_acts_list, axis=1)
-            sorted_acts = np.sort(concatenated_acts, axis=1)
+            if len(top_acts_list) > 0:
+                concatenated_acts = np.concatenate(top_acts_list, axis=1)
+                sorted_acts = np.sort(concatenated_acts, axis=1)
+            else:
+                sorted_acts = np.array([])
             all_top_acts[extype] = sorted_acts
 
         total_num_tokens_seen = sum(num_tokens_seen.values())
@@ -718,7 +724,7 @@ class ExemplarsWrapper:
         if layer in self.layers_cache:
             return self.layers_cache[layer]
 
-        num_neurons_per_layer = self.subject.I
+        # num_neurons_per_layer = self.subject.I
         act_percs = self.get_layer_act_percs(layer)
 
         seq_acts: Dict[ExemplarSplit, Dict[ExemplarType, NDFloatArray]] = defaultdict(dict)
@@ -740,9 +746,9 @@ class ExemplarsWrapper:
                     layer_dataset_ids = np.load(
                         os.path.join(layer_dir, f"{extype.value}_dataset_ids.npy")
                     )
-                    seq_acts[split][extype] = layer_seq_acts[:num_neurons_per_layer]
-                    token_ids[split][extype] = layer_seq_ids[:num_neurons_per_layer]
-                    dataset_ids[split][extype] = layer_dataset_ids[:num_neurons_per_layer]
+                    seq_acts[split][extype] = layer_seq_acts
+                    token_ids[split][extype] = layer_seq_ids
+                    dataset_ids[split][extype] = layer_dataset_ids
             except:
                 continue
         # Save data in cache.
@@ -799,8 +805,11 @@ class ExemplarsWrapper:
             dset_names[split] = {}
             for extype in ExemplarType:
                 act_records[split][extype] = []
-                neuron_acts = layer_acts[split][extype][neuron_idx]
-                neuron_token_ids = layer_token_ids[split][extype][neuron_idx]
+                try:
+                    neuron_acts = layer_acts[split][extype][neuron_idx]
+                    neuron_token_ids = layer_token_ids[split][extype][neuron_idx]
+                except KeyError:
+                    continue
 
                 for acts, ids in zip(neuron_acts, neuron_token_ids):
                     ids = strip_padding(ids, pad_id)
@@ -900,6 +909,9 @@ class ExemplarsWrapper:
                     exemplar_type,
                 )
             )
+        # TODO: move this to a separate function
+        with open(os.path.join(self.save_path, f"neuron_{layer}_{neuron_idx}.html"), "w") as f:
+            f.write(html_content)
         display(HTML(html_content))  # type: ignore
 
     @property
