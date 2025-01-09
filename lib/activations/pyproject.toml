@@ -5,12 +5,15 @@ description = "Neuron activations"
 
 requires-python = "==3.12.*"
 dependencies = [
+    "baukit",
+    "einops>=0.8.0",
+    "transformer-lens>=2.11.0",
     "util",
-    "baukit @ git+https://github.com/choidami/baukit.git",
 ]
 
 [tool.uv.sources]
-util = {path = "../util", editable = true}
+baukit = { git = "https://github.com/choidami/baukit.git" }
+util = { path = "../util", editable = true }
 
 [build-system]
 requires = ["hatchling"]

@@ -4,7 +4,7 @@ from __future__ import annotations
 # related helper functions.
 import heapq
 from collections import defaultdict
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -255,9 +255,9 @@ class NeuronExplanations(BaseModel):
     """Simulation results and scores for a neuron."""
 
     neuron_id: NeuronId
-    explanations: dict[ActivationSign, List[NeuronExplanation] | None]
+    explanations: Mapping[ActivationSign, List[NeuronExplanation] | None]
     explanation_generation_metadata: Optional[
-        dict[ActivationSign, ExplanationGenerationMetadata | None]
+        Mapping[ActivationSign, ExplanationGenerationMetadata | None]
     ] = None
 
     def get_best_explanations(

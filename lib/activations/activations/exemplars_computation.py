@@ -217,6 +217,8 @@ def compute_exemplars_for_layer(
     get_acts = get_activations_computing_func(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
+    if exemplars_wrapper.sae_wrapper is not None:
+        get_acts = exemplars_wrapper.sae_wrapper.get_activations_computing_func(subject)
 
     def save(curr_step: int, num_tokens_seen_so_far: int):
         acts_to_save: Dict[ExemplarType, NDFloatArray] = {}
@@ -278,7 +280,8 @@ def compute_exemplars_for_layer(
             continue
 
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
-        acts = get_acts(input_ids=batch["input_ids"], attn_mask=batch["attention_mask"]).to(
+
+        acts = get_acts(batch["input_ids"], batch["attention_mask"]).to(
             "cuda:0"
         )  # (batch_size, seq_len, act_dim)
 
@@ -358,6 +361,8 @@ def compute_exemplars_for_neuron(
     get_acts = get_activations_computing_func(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
+    if exemplars_wrapper.sae_wrapper is not None:
+        get_acts = exemplars_wrapper.sae_wrapper.get_activations_computing_func(subject)
 
     num_tokens_seen = 0
     step = None
@@ -374,9 +379,11 @@ def compute_exemplars_for_neuron(
         num_tokens_seen += int(batch["attention_mask"].sum().item())
 
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
-        acts = get_acts(input_ids=batch["input_ids"], attn_mask=batch["attention_mask"]).to(
+
+        acts = get_acts(batch["input_ids"], batch["attention_mask"]).to(
             "cuda:0"
         )  # (batch_size, seq_len, act_dim)
+
         neuron_acts = acts[:, :, [neuron_idx]]  # (batch_size, seq_len, 1)
         for key, largest in [(ExemplarType.MAX, True), (ExemplarType.MIN, False)]:
             (
@@ -512,6 +519,8 @@ def save_random_seqs_for_layer(
     get_acts = get_activations_computing_func(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
+    if exemplars_wrapper.sae_wrapper is not None:
+        get_acts = exemplars_wrapper.sae_wrapper.get_activations_computing_func(subject)
 
     all_seq_ids: List[NDIntArray] = []
     all_seq_acts: List[NDFloatArray] = []
@@ -524,9 +533,11 @@ def save_random_seqs_for_layer(
 
         dataset_ids = batch.pop("dataset_ids")
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
-        acts = get_acts(input_ids=batch["input_ids"], attn_mask=batch["attention_mask"]).to(
+
+        acts = get_acts(batch["input_ids"], batch["attention_mask"]).to(
             "cuda:0"
         )  # (batch_size, seq_len, act_dim)
+
         acts = acts[
             : num_neurons_per_step * k,
             :,

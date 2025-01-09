@@ -18,6 +18,7 @@ from activations.dataset import (
 from activations.exemplars import ExemplarSplit, ExemplarType, NeuronExemplars
 from IPython.display import HTML, display  # type: ignore
 from pydantic import BaseModel
+from sparse_autoencoders.sae_wrapper import SAEWrapper, SAEWrapperConfig  # type: ignore
 from torch.utils.data import Dataset, IterableDataset
 from util.chat_input import IdsInput
 from util.subject import Subject, get_subject_config
@@ -323,6 +324,7 @@ class ExemplarConfig(BaseModel):
     rand_seqs: int = 10
     seed: int = 64
     activation_type: ActivationType = ActivationType.NEURONS
+    sae_wrapper: Optional[SAEWrapperConfig] = None
 
 
 class ExemplarsWrapper:
@@ -331,6 +333,7 @@ class ExemplarsWrapper:
         data_dir: str,
         config: ExemplarConfig,
         subject: Subject,
+        sae_wrapper: Optional[SAEWrapper] = None,
     ):
         # Check whether hf_model_id matches subject.
         assert config.hf_model_id == subject.lm_config.hf_model_id
@@ -350,6 +353,8 @@ class ExemplarsWrapper:
         folder_name_components.append(f"{config.seq_len}seqlen")
         if config.activation_type != "neurons":
             folder_name_components.append(config.activation_type)
+        if sae_wrapper is not None:
+            folder_name_components.append(sae_wrapper.config.sae_id)
         assert subject.tokenizer.padding_side == "left"
 
         folder_name = "_".join(folder_name_components)
@@ -394,6 +399,7 @@ class ExemplarsWrapper:
         self.hf_datasets: List[HFDatasetWrapper] = [hf_datasets[name] for name in dataset_names]
         self.dataset_names: List[str] = dataset_names
         self.save_path: str = save_path
+        self.sae_wrapper: Optional[SAEWrapper] = sae_wrapper
 
     @classmethod
     def from_disk(cls, save_path: str, subject: Optional[Subject] = None):
@@ -433,9 +439,9 @@ class ExemplarsWrapper:
             ExemplarSplit.RANDOM_TEST,
         )
 
-        num_features = self.num_features
+        self.num_features
         num_top_feats_to_save = self.config.num_top_acts_to_save
-        k, seq_len = self.config.k, self.config.seq_len
+        # k, seq_len = self.config.k, self.config.seq_len
 
         layer_dir = self.get_layer_dir(layer, split)
         try:
@@ -455,20 +461,22 @@ class ExemplarsWrapper:
                 if not random:
                     acts[extype] = np.load(os.path.join(layer_dir, f"{extype.value}_acts.npy"))
                     assert (
-                        acts[extype].shape[0] == num_features
-                        and acts[extype].shape[1] <= num_top_feats_to_save
+                        # acts[extype].shape[0] == num_features and
+                        # and acts[extype].shape[1] <= num_top_feats_to_save
+                        acts[extype].shape[1]
+                        <= num_top_feats_to_save
                     )
 
                 seq_acts[extype] = np.load(os.path.join(layer_dir, f"{extype.value}_seq_acts.npy"))
-                assert seq_acts[extype].shape == (num_features, k, seq_len)
+                # assert seq_acts[extype].shape == (num_features, k, seq_len)
 
                 ids[extype] = np.load(os.path.join(layer_dir, f"{extype.value}_seq_ids.npy"))
-                assert ids[extype].shape == (num_features, k, seq_len)
+                # assert ids[extype].shape == (num_features, k, seq_len)
 
                 dataset_ids[extype] = np.load(
                     os.path.join(layer_dir, f"{extype.value}_dataset_ids.npy")
                 )
-                assert dataset_ids[extype].shape == (num_features, k)
+                # assert dataset_ids[extype].shape == (num_features, k)
 
             return acts, seq_acts, ids, dataset_ids, step, num_tokens_seen
         except:
@@ -496,33 +504,33 @@ class ExemplarsWrapper:
         layer_dir = self.get_layer_dir(layer, split)
         os.makedirs(layer_dir, exist_ok=True)
 
-        num_features = self.num_features
+        self.num_features
         num_top_feats_to_save = self.config.num_top_acts_to_save
-        k, seq_len = self.config.k, self.config.seq_len
+        # k, seq_len = self.config.k, self.config.seq_len
 
         # Save data and check shapes.
         for extype in ExemplarType:
             if not random:
                 assert (
                     acts is not None
-                    and acts[extype].shape[0] == num_features
+                    # and acts[extype].shape[0] == num_features
                     and acts[extype].shape[1] <= num_top_feats_to_save
                 )
                 np.save(os.path.join(layer_dir, f"{extype.value}_acts.npy"), acts[extype])
 
-            assert seq_acts[extype].shape == (num_features, k, seq_len)
+            # assert seq_acts[extype].shape == (num_features, k, seq_len)
             np.save(
                 os.path.join(layer_dir, f"{extype.value}_seq_acts.npy"),
                 seq_acts[extype],
             )
 
-            assert token_ids[extype].shape == (num_features, k, seq_len)
+            # assert token_ids[extype].shape == (num_features, k, seq_len)
             np.save(
                 os.path.join(layer_dir, f"{extype.value}_seq_ids.npy"),
                 token_ids[extype],
             )
 
-            assert dataset_ids[extype].shape == (num_features, k)
+            # assert dataset_ids[extype].shape == (num_features, k)
             np.save(
                 os.path.join(layer_dir, f"{extype.value}_dataset_ids.npy"),
                 dataset_ids[extype],
@@ -617,8 +625,12 @@ class ExemplarsWrapper:
                 except:
                     continue
                 splits.add(split)
-            concatenated_acts = np.concatenate(list(acts.values()), axis=1)
-            sorted_acts = np.sort(concatenated_acts, axis=1)
+            acts_list = list(acts.values())
+            if len(acts_list) > 0:
+                concatenated_acts = np.concatenate(acts_list, axis=1)
+                sorted_acts = np.sort(concatenated_acts, axis=1)
+            else:
+                sorted_acts = np.array([])
             layer_acts[extype] = sorted_acts
 
         num_tokens_seen = 0
@@ -657,8 +669,11 @@ class ExemplarsWrapper:
                     continue
                 top_acts_list.append(top_acts[split][extype])
                 splits.add(split)
-            concatenated_acts = np.concatenate(top_acts_list, axis=1)
-            sorted_acts = np.sort(concatenated_acts, axis=1)
+            if len(top_acts_list) > 0:
+                concatenated_acts = np.concatenate(top_acts_list, axis=1)
+                sorted_acts = np.sort(concatenated_acts, axis=1)
+            else:
+                sorted_acts = np.array([])
             all_top_acts[extype] = sorted_acts
 
         total_num_tokens_seen = sum(num_tokens_seen.values())
@@ -696,7 +711,7 @@ class ExemplarsWrapper:
         if layer in self.layers_cache:
             return self.layers_cache[layer]
 
-        num_neurons_per_layer = self.subject.I
+        # num_neurons_per_layer = self.subject.I
         act_percs = self.get_layer_act_percs(layer)
 
         seq_acts: Dict[ExemplarSplit, Dict[ExemplarType, NDFloatArray]] = defaultdict(dict)
@@ -718,9 +733,9 @@ class ExemplarsWrapper:
                     layer_dataset_ids = np.load(
                         os.path.join(layer_dir, f"{extype.value}_dataset_ids.npy")
                     )
-                    seq_acts[split][extype] = layer_seq_acts[:num_neurons_per_layer]
-                    token_ids[split][extype] = layer_seq_ids[:num_neurons_per_layer]
-                    dataset_ids[split][extype] = layer_dataset_ids[:num_neurons_per_layer]
+                    seq_acts[split][extype] = layer_seq_acts
+                    token_ids[split][extype] = layer_seq_ids
+                    dataset_ids[split][extype] = layer_dataset_ids
             except:
                 continue
         # Save data in cache.
@@ -777,8 +792,11 @@ class ExemplarsWrapper:
             dset_names[split] = {}
             for extype in ExemplarType:
                 act_records[split][extype] = []
-                neuron_acts = layer_acts[split][extype][neuron_idx]
-                neuron_token_ids = layer_token_ids[split][extype][neuron_idx]
+                try:
+                    neuron_acts = layer_acts[split][extype][neuron_idx]
+                    neuron_token_ids = layer_token_ids[split][extype][neuron_idx]
+                except KeyError:
+                    continue
 
                 for acts, ids in zip(neuron_acts, neuron_token_ids):
                     ids = strip_padding(ids, pad_id)
@@ -878,6 +896,9 @@ class ExemplarsWrapper:
                     exemplar_type,
                 )
             )
+        # TODO: move this to a separate function
+        with open(os.path.join(self.save_path, f"neuron_{layer}_{neuron_idx}.html"), "w") as f:
+            f.write(html_content)
         display(HTML(html_content))  # type: ignore
 
     @property

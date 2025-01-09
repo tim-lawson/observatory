@@ -129,7 +129,7 @@ class Subject:
         )
 
         # Load model + tokenizer
-        kwargs = {"dispatch": False, "device_map": "auto"}
+        kwargs: dict[str, Any] = {"dispatch": False, "device_map": "auto"}
         kwargs.update({"torch_dtype": hf_config.torch_dtype} if cast_to_hf_config_dtype else {})  # type: ignore
         kwargs.update(nnsight_lm_kwargs)
         self.model = LanguageModel(config.hf_model_id, **kwargs)
@@ -683,7 +683,33 @@ llama31_70B_instruct_config = Llama3Config(
 )
 
 
-def get_subject_config(hf_model_id: str):
+# TODO: incomplete but should work for now
+class PythiaConfig(LMConfig):
+    unembed_module_str: str = "embed_out"
+    unembed_norm_module_str: str = "gpt_neox.final_layer_norm"
+    w_in_module_template: str = "gpt_neox.layers.{layer}.mlp.dense_h_to_4h"
+    w_gate_module_template: str = ""  # doesn't use GLU variants
+    w_out_module_template: str = "gpt_neox.layers.{layer}.mlp.dense_4h_to_h"
+    layer_module_template: str = "gpt_neox.layers.{layer}"
+    mlp_module_template: str = "gpt_neox.layers.{layer}.mlp"
+    attn_module_template: str = "gpt_neox.layers.{layer}.attention"
+    v_proj_module_template: str = ""  # combines qkv in one linear layer
+    o_proj_module_template: str = "gpt_neox.layers.{layer}.attention.dense"
+    input_norm_module_template: str = "gpt_neox.layers.{layer}.input_layernorm"
+
+    I_name: str = "intermediate_size"
+    D_name: str = "hidden_size"
+    V_name: str = "vocab_size"
+    L_name: str = "num_hidden_layers"
+    Q_name: str = "num_attention_heads"
+    K_name: str = "num_attention_heads"  # doesn't use grouped query attention
+
+    layernorm_fn: Callable[[torch.Tensor, torch.Tensor, torch.Tensor, float], torch.Tensor] = (
+        _llama3_layernorm_fn  # uses torch LayerNorm so should be fine
+    )
+
+
+def get_subject_config(hf_model_id: str) -> LMConfig:
     if hf_model_id == "meta-llama/Meta-Llama-3-8B":
         return llama3_8B_config
     elif hf_model_id == "meta-llama/Meta-Llama-3.1-8B":
@@ -692,6 +718,11 @@ def get_subject_config(hf_model_id: str):
         return llama31_8B_instruct_config
     elif hf_model_id == "meta-llama/Meta-Llama-3.1-70B-Instruct":
         return llama31_70B_instruct_config
+    elif hf_model_id.startswith("EleutherAI/pythia"):
+        return PythiaConfig(
+            hf_model_id=hf_model_id,
+            is_chat_model=False,
+        )
     else:
         raise ValueError(f"Unsupported hf_model_id={hf_model_id}")
 

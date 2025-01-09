@@ -41,7 +41,7 @@ parser.add_argument(
     "--subject_hf_model_id",
     type=str,
     default="meta-llama/Meta-Llama-3.1-8B-Instruct",
-    help="Huggingface model id for model to get activations for.",
+    help="HuggingFace model id for model to get activations for.",
 )
 parser.add_argument(
     "--split",
@@ -54,7 +54,7 @@ parser.add_argument(
     type=str,
     nargs="+",
     default=["fineweb", "lmsys"],
-    help="Huggingface datasets to use.",
+    help="HuggingFace datasets to use.",
 )
 parser.add_argument(
     "--sampling_ratios",
@@ -123,6 +123,7 @@ exemplar_config = ExemplarConfig(
     seed=args.seed,
     activation_type=args.activation_type,
 )
+
 exemplars_wrapper = ExemplarsWrapper(args.data_dir, exemplar_config, subject)
 
 layer_indices = args.layer_indices if args.layer_indices else range(subject.L)
