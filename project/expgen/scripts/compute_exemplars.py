@@ -14,7 +14,6 @@ from activations.exemplars_computation import (
     save_random_seqs_for_layer,
 )
 from activations.exemplars_wrapper import ExemplarConfig, ExemplarsWrapper
-from sae_lens import SAE  # type: ignore
 from util.subject import Subject, get_subject_config
 
 parser = argparse.ArgumentParser()
@@ -43,13 +42,6 @@ parser.add_argument(
     type=str,
     default="meta-llama/Meta-Llama-3.1-8B-Instruct",
     help="HuggingFace model id for model to get activations for.",
-)
-# TODO: SAELens releases aren't the same as HuggingFace model ids...
-parser.add_argument(
-    "--sae_lens_release",
-    type=str,
-    default="llama_scope_lxr_8x",
-    help="SAELens release for sparse autoencoder to encode activations with.",
 )
 parser.add_argument(
     "--split",
@@ -110,12 +102,6 @@ assert args.seq_len >= 64, "It's probably best to use long-enough sequences."
 subject_config = get_subject_config(args.subject_hf_model_id)
 subject = Subject(subject_config, nnsight_lm_kwargs={"dispatch": True})
 
-# TODO: SAELens ids also vary between repos...
-sae_id = "l0r_8x"
-sae, _cfg_dict, _sparsity = SAE.from_pretrained(
-    release=args.sae_lens_release, sae_id=sae_id, device="cuda"
-)
-
 hf_dataset_configs: list[HFDatasetWrapperConfig] = []
 for hf_dataset in args.hf_datasets:
     if hf_dataset == "fineweb":
@@ -136,9 +122,9 @@ exemplar_config = ExemplarConfig(
     batch_size=args.batch_size,
     seed=args.seed,
     activation_type=args.activation_type,
-    sae_release=args.sae_lens_release,
 )
-exemplars_wrapper = ExemplarsWrapper(args.data_dir, exemplar_config, subject, sae)
+
+exemplars_wrapper = ExemplarsWrapper(args.data_dir, exemplar_config, subject)
 
 layer_indices = args.layer_indices if args.layer_indices else range(subject.L)
 for layer in layer_indices:

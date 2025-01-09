@@ -16,7 +16,7 @@ class ActivationType(str, Enum):
 
 
 def _get_activations_funcs(
-    subject: Subject, activation_type: ActivationType, layer: int
+    subject: Subject, activation_type: ActivationType | str, layer: int
 ) -> tuple[Callable[[], Envoy], Callable[[Envoy], InterventionProxy]]:
     if activation_type == ActivationType.RESID:
         return (
@@ -47,8 +47,8 @@ def _get_activations_funcs(
 
 
 def get_activations_computing_func(
-    subject: Subject, activation_type: ActivationType, layer: int
-) -> Callable[[torch.Tensor, torch.Tensor], torch.Tensor]:
+    subject: Subject, activation_type: ActivationType | str, layer: int
+):
     """
     Returns a function that computes activations for a given input:
     input_ids: torch.Tensor

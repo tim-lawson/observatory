@@ -5,21 +5,19 @@ description = "explanation generation and scoring pipeline"
 
 requires-python = "==3.12.*"
 dependencies = [
-    "util",
     "activations",
     "explanations",
     "jupyter>=1.0.0",
+    "sparse-autoencoders",
     "statsmodels>=0.14.0",
-    "sae-lens",
-    "jacobian-saes",
+    "util",
 ]
 
 [tool.uv.sources]
-util = { path = "../../lib/util", editable = true }
 activations = { path = "../../lib/activations", editable = true }
 explanations = { path = "../../lib/explanations", editable = true }
-sae-lens = { git = "https://github.com/tim-lawson/SAELens", branch = "timl/deps" }
-jacobian-saes = { path = "../../../jacobian-saes", editable = true }
+sparse-autoencoders = { path = "../../lib/sparse_autoencoders", editable = true }
+util = { path = "../../lib/util", editable = true }
 
 [build-system]
 requires = ["hatchling"]
@@ -29,7 +27,7 @@ build-backend = "hatchling.build"
 packages = ["expgen"]
 
 [tool.pyright]
-# strict = ["expgen"]
+strict = ["expgen"]
 reportMissingTypeStubs = false
 
 [tool.hatch.metadata]

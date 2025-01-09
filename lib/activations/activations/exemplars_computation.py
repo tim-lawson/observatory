@@ -3,7 +3,7 @@
 import math
 import random
 from functools import partial
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Tuple
 
 import numpy as np
 import torch
@@ -11,7 +11,6 @@ from activations.activations_computation import get_activations_computing_func
 from activations.dataset import MultiSourceDataset
 from activations.exemplars import ExemplarSplit, ExemplarType
 from activations.exemplars_wrapper import ExemplarsWrapper
-from sae_lens import SAE  # type: ignore
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from util.types import NDFloatArray, NDIntArray
@@ -55,14 +54,6 @@ def collate_fn_with_dataset_ids(
         "attention_mask": attn_mask.int(),
         "dataset_ids": torch.tensor(dataset_ids),
     }
-
-
-def get_sae_encode_func(sae: Optional[SAE]) -> Callable[[torch.Tensor], torch.Tensor]:
-    def sae_encode_func(x: torch.Tensor) -> torch.Tensor:
-        with torch.no_grad():
-            return sae.encode(x) if sae is not None else x
-
-    return sae_encode_func
 
 
 def update_top_acts_and_starts(
@@ -162,8 +153,6 @@ def compute_exemplars_for_layer(
     subject = exemplars_wrapper.subject
     num_iters = config.num_seqs // config.batch_size
 
-    sae_encode_func = get_sae_encode_func(exemplars_wrapper.sae)
-
     # Keep track of the top-k max and min activations per neuron.
     top_acts: Dict[ExemplarType, torch.Tensor | None] = {
         extype: None for extype in ExemplarType
@@ -228,6 +217,8 @@ def compute_exemplars_for_layer(
     get_acts = get_activations_computing_func(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
+    if exemplars_wrapper.sae_wrapper is not None:
+        get_acts = exemplars_wrapper.sae_wrapper.get_activations_computing_func(subject)
 
     def save(curr_step: int, num_tokens_seen_so_far: int):
         acts_to_save: Dict[ExemplarType, NDFloatArray] = {}
@@ -290,18 +281,9 @@ def compute_exemplars_for_layer(
 
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
 
-        if exemplars_wrapper.jsae is not None:
-            assert exemplars_wrapper.config.jsae is not None
-            acts = exemplars_wrapper.jsae.get_acts(
-                subject=subject,
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-                activation_type=exemplars_wrapper.config.jsae.activation_type,
-            )
-        else:
-            acts = sae_encode_func(
-                get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
-            )  # (batch_size, seq_len, act_dim)
+        acts = get_acts(batch["input_ids"], batch["attention_mask"]).to(
+            "cuda:0"
+        )  # (batch_size, seq_len, act_dim)
 
         for key, largest in [(ExemplarType.MAX, True), (ExemplarType.MIN, False)]:
             (
@@ -346,8 +328,6 @@ def compute_exemplars_for_neuron(
     subject = exemplars_wrapper.subject
     num_iters = config.num_seqs // config.batch_size
 
-    sae_encode_func = get_sae_encode_func(exemplars_wrapper.sae)
-
     # Keep track of the top-k max and min activations.
     top_acts: Dict[ExemplarType, torch.Tensor | None] = {
         extype: None for extype in ExemplarType
@@ -381,6 +361,8 @@ def compute_exemplars_for_neuron(
     get_acts = get_activations_computing_func(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
+    if exemplars_wrapper.sae_wrapper is not None:
+        get_acts = exemplars_wrapper.sae_wrapper.get_activations_computing_func(subject)
 
     num_tokens_seen = 0
     step = None
@@ -398,18 +380,9 @@ def compute_exemplars_for_neuron(
 
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
 
-        if exemplars_wrapper.jsae is not None:
-            assert exemplars_wrapper.config.jsae is not None
-            acts = exemplars_wrapper.jsae.get_acts(
-                subject=subject,
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-                activation_type=exemplars_wrapper.config.jsae.activation_type,
-            )
-        else:
-            acts = sae_encode_func(
-                get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
-            )  # (batch_size, seq_len, act_dim)
+        acts = get_acts(batch["input_ids"], batch["attention_mask"]).to(
+            "cuda:0"
+        )  # (batch_size, seq_len, act_dim)
 
         neuron_acts = acts[:, :, [neuron_idx]]  # (batch_size, seq_len, 1)
         for key, largest in [(ExemplarType.MAX, True), (ExemplarType.MIN, False)]:
@@ -490,8 +463,6 @@ def save_random_seqs_for_layer(
     rand_seqs = config.rand_seqs
     k = rand_seqs * 2  # we need rand_seqs random sequences for each exemplar type (max and min).
 
-    sae_encode_func = get_sae_encode_func(exemplars_wrapper.sae)
-
     num_neurons_per_step = config.batch_size // k
     num_exemplars_per_step = num_neurons_per_step * k
     num_total_exemplars_needed = subject.I * k
@@ -548,6 +519,8 @@ def save_random_seqs_for_layer(
     get_acts = get_activations_computing_func(
         subject=subject, activation_type=config.activation_type, layer=layer
     )
+    if exemplars_wrapper.sae_wrapper is not None:
+        get_acts = exemplars_wrapper.sae_wrapper.get_activations_computing_func(subject)
 
     all_seq_ids: List[NDIntArray] = []
     all_seq_acts: List[NDFloatArray] = []
@@ -561,18 +534,9 @@ def save_random_seqs_for_layer(
         dataset_ids = batch.pop("dataset_ids")
         batch = {k: v.to("cuda", non_blocking=True) for k, v in batch.items()}
 
-        if exemplars_wrapper.jsae is not None:
-            assert exemplars_wrapper.config.jsae is not None
-            acts = exemplars_wrapper.jsae.get_acts(
-                subject=subject,
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-                activation_type=exemplars_wrapper.config.jsae.activation_type,
-            )
-        else:
-            acts = sae_encode_func(
-                get_acts(batch["input_ids"], batch["attention_mask"]).to("cuda:0")
-            )  # (batch_size, seq_len, act_dim)
+        acts = get_acts(batch["input_ids"], batch["attention_mask"]).to(
+            "cuda:0"
+        )  # (batch_size, seq_len, act_dim)
 
         acts = acts[
             : num_neurons_per_step * k,

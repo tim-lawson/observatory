@@ -16,10 +16,9 @@ from activations.dataset import (
     lmsys_dset_config,
 )
 from activations.exemplars import ExemplarSplit, ExemplarType, NeuronExemplars
-from activations.jacobian_saes import JSAE, JSAEConfig
 from IPython.display import HTML, display  # type: ignore
 from pydantic import BaseModel
-from sae_lens.sae import SAE  # type: ignore
+from sparse_autoencoders.sae_wrapper import SAEWrapper, SAEWrapperConfig  # type: ignore
 from torch.utils.data import Dataset, IterableDataset
 from util.chat_input import IdsInput
 from util.subject import Subject, get_subject_config
@@ -325,10 +324,7 @@ class ExemplarConfig(BaseModel):
     rand_seqs: int = 10
     seed: int = 64
     activation_type: ActivationType = ActivationType.NEURONS
-
-    # arbitrary id for the SAE(s)
-    sae_id: Optional[str] = None
-    jsae: Optional[JSAEConfig] = None
+    sae_wrapper: Optional[SAEWrapperConfig] = None
 
 
 class ExemplarsWrapper:
@@ -337,14 +333,10 @@ class ExemplarsWrapper:
         data_dir: str,
         config: ExemplarConfig,
         subject: Subject,
-        sae: Optional[SAE] = None,
-        jsae: Optional[JSAE] = None,
+        sae_wrapper: Optional[SAEWrapper] = None,
     ):
         # Check whether hf_model_id matches subject.
         assert config.hf_model_id == subject.lm_config.hf_model_id
-
-        # Check that only one of sae and jsae is provided.
-        assert sae is None or jsae is None
 
         hf_datasets: Dict[str, HFDatasetWrapper] = {}
         for hf_dataset_config in config.hf_dataset_configs:
@@ -361,10 +353,8 @@ class ExemplarsWrapper:
         folder_name_components.append(f"{config.seq_len}seqlen")
         if config.activation_type != "neurons":
             folder_name_components.append(config.activation_type)
-        if config.sae_id is not None:
-            folder_name_components.append(config.sae_id)
-        if config.jsae is not None:
-            folder_name_components.append(config.jsae.activation_type.value)
+        if sae_wrapper is not None:
+            folder_name_components.append(sae_wrapper.config.sae_id)
         assert subject.tokenizer.padding_side == "left"
 
         folder_name = "_".join(folder_name_components)
@@ -409,10 +399,7 @@ class ExemplarsWrapper:
         self.hf_datasets: List[HFDatasetWrapper] = [hf_datasets[name] for name in dataset_names]
         self.dataset_names: List[str] = dataset_names
         self.save_path: str = save_path
-
-        # Only one of sae and jacobian_saes is provided.
-        self.sae: Optional[SAE] = sae
-        self.jsae: Optional[JSAE] = jsae
+        self.sae_wrapper: Optional[SAEWrapper] = sae_wrapper
 
     @classmethod
     def from_disk(cls, save_path: str, subject: Optional[Subject] = None):

@@ -30,8 +30,6 @@ source = { editable = "../../lib/activations" }
 dependencies = [
     { name = "baukit" },
     { name = "einops" },
-    { name = "jacobian-saes" },
-    { name = "sae-lens" },
     { name = "transformer-lens" },
     { name = "util" },
 ]
@@ -40,8 +38,6 @@ dependencies = [
 requires-dist = [
     { name = "baukit", git = "https://github.com/choidami/baukit.git" },
     { name = "einops", specifier = ">=0.8.0" },
-    { name = "jacobian-saes", editable = "../../../jacobian-saes" },
-    { name = "sae-lens", git = "https://github.com/tim-lawson/SAELens?branch=timl%2Fdeps" },
     { name = "transformer-lens", specifier = ">=2.11.0" },
     { name = "util", editable = "../../lib/util" },
 ]
@@ -283,7 +279,7 @@ wheels = [
 [[package]]
 name = "baukit"
 version = "0.0.1"
-source = { git = "https://github.com/choidami/baukit.git#13b8720b8a0dc85db7386253fdcc31bdff0e4815" }
+source = { git = "https://github.com/choidami/baukit#13b8720b8a0dc85db7386253fdcc31bdff0e4815" }
 dependencies = [
     { name = "numpy" },
     { name = "torch" },
@@ -693,11 +689,11 @@ wheels = [
 
 [[package]]
 name = "dol"
-version = "0.2.95"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/70/ad/821d00448d9dbec9d79ed27a707adc8c228bef5173ed669e1a9ea5614f53/dol-0.2.95.tar.gz", hash = "sha256:bdb3340b3b4f9b9eae089cf12ef45ab61ca2e6772f020cbee557f8009de8ab32", size = 237615 }
+sdist = { url = "https://files.pythonhosted.org/packages/9a/8e/fc537fbe1a867466cd210425f7caced447b864b4739a33f49361665ad6f3/dol-0.3.1.tar.gz", hash = "sha256:85e00c4887f448b7b36150a76d2c3035f8c5877b1f50c38325dae677833de931", size = 237555 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/f6/4a272d67ff8be621c1d8cc8ff52741cb5f65571ad46689e6c50a744981a6/dol-0.2.95-py3-none-any.whl", hash = "sha256:f44ea6f7e9692985241b69e377cc344adbf40ff22d0bc3e961096fb976dfb09b", size = 245718 },
+    { url = "https://files.pythonhosted.org/packages/0e/91/27532184e022694470c54658028211967bbaaa7c906c64a200df513c1f74/dol-0.3.1-py3-none-any.whl", hash = "sha256:8f965e75238bfc66678f183b8a4d459e28b5ca178ad9e544ab94e35e02605618", size = 245704 },
 ]
 
 [[package]]
@@ -725,9 +721,8 @@ source = { editable = "." }
 dependencies = [
     { name = "activations" },
     { name = "explanations" },
-    { name = "jacobian-saes" },
     { name = "jupyter" },
-    { name = "sae-lens" },
+    { name = "sparse-autoencoders" },
     { name = "statsmodels" },
     { name = "util" },
 ]
@@ -736,9 +731,8 @@ dependencies = [
 requires-dist = [
     { name = "activations", editable = "../../lib/activations" },
     { name = "explanations", editable = "../../lib/explanations" },
-    { name = "jacobian-saes", editable = "../../../jacobian-saes" },
     { name = "jupyter", specifier = ">=1.0.0" },
-    { name = "sae-lens", git = "https://github.com/tim-lawson/SAELens?branch=timl%2Fdeps" },
+    { name = "sparse-autoencoders", editable = "../../lib/sparse_autoencoders" },
     { name = "statsmodels", specifier = ">=0.14.0" },
     { name = "util", editable = "../../lib/util" },
 ]
@@ -3424,6 +3418,33 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/ce/fbaeed4f9fb8b2daa961f90591662df6a86c1abf25c548329a86920aedfb/soupsieve-2.6.tar.gz", hash = "sha256:e2e68417777af359ec65daac1057404a3c8a5455bb8abc36f1a9866ab1a51abb", size = 101569 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/c2/fe97d779f3ef3b15f05c94a2f1e3d21732574ed441687474db9d342a7315/soupsieve-2.6-py3-none-any.whl", hash = "sha256:e72c4ff06e4fb6e4b5a9f0f55fe6e81514581fca1515028625d0f299c602ccc9", size = 36186 },
+]
+
+[[package]]
+name = "sparse-autoencoders"
+version = "0.0.1"
+source = { editable = "../../lib/sparse_autoencoders" }
+dependencies = [
+    { name = "activations" },
+    { name = "baukit" },
+    { name = "einops" },
+    { name = "jacobian-saes" },
+    { name = "sae" },
+    { name = "sae-lens" },
+    { name = "transformer-lens" },
+    { name = "util" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "activations", editable = "../../lib/activations" },
+    { name = "baukit", git = "https://github.com/choidami/baukit.git" },
+    { name = "einops", specifier = ">=0.8.0" },
+    { name = "jacobian-saes", editable = "../../../jacobian-saes" },
+    { name = "sae", git = "https://github.com/EleutherAI/sae" },
+    { name = "sae-lens", git = "https://github.com/tim-lawson/SAELens?branch=timl%2Fdeps" },
+    { name = "transformer-lens", specifier = ">=2.11.0" },
+    { name = "util", editable = "../../lib/util" },
 ]
 
 [[package]]

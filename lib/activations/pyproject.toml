@@ -5,18 +5,15 @@ description = "Neuron activations"
 
 requires-python = "==3.12.*"
 dependencies = [
-    "util",
-    "baukit @ git+https://github.com/choidami/baukit.git",
-    "sae-lens",
-    "jacobian-saes",
+    "baukit",
     "einops>=0.8.0",
     "transformer-lens>=2.11.0",
+    "util",
 ]
 
 [tool.uv.sources]
-util = {path = "../util", editable = true}
-sae-lens = { git = "https://github.com/tim-lawson/SAELens", branch = "timl/deps" }
-jacobian-saes = { path = "../../../jacobian-saes", editable = true }
+baukit = { git = "https://github.com/choidami/baukit.git" }
+util = { path = "../util", editable = true }
 
 [build-system]
 requires = ["hatchling"]
